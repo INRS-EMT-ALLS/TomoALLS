@@ -9,3 +9,4 @@ test_images/
 .ropeproject/
 src/__pycache__/
 .pyc
+lib64
