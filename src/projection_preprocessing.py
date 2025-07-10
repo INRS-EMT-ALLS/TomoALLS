@@ -12,10 +12,13 @@ from os.path import isfile, join
 from projection_io import viewer, image_importer, directory_images_importer
 
 def gain_correction(image,gain_map,offset_map):
-    image = image + 1
-    image = (image-offset_map)/(gain_map-offset_map)
-
+    image = (image-offset_map+ 2e-8)/(gain_map-offset_map+ 2e-8)
     return image
+
+def normalize(image):
+    image = (image-image.min()+ 2e-8)/(image.max()-image.min()+ 2e-8)
+    return image
+
 
 def generate_gain_map(path, height, width, dtype=np.uint16):
 
@@ -44,3 +47,22 @@ def generate_offset_map(path, height, width, dtype=np.uint16):
         offset_map = image_importer(path, height, width, dtype=np.uint16)
 
     return offset_map
+
+def projection_correction(images,gain_map,offset_map,bad_pixel_map=None):
+    corrected_frames = np.zeros(images.shape)
+    averaged = np.zeros(images.shape[1:])
+    for i in range(images.shape[0]):
+        frame = gain_correction(images[i,:,:],gain_map,offset_map)
+        normalized = normalize(frame)
+        corrected_frames[i,:,:]+=normalized
+        averaged+=corrected_frames[i,:,:]
+    averaged/=images.shape[0]
+    return averaged
+
+images = directory_images_importer("../test_images/projections/",2048,4096)
+comparison = directory_images_importer("../test_images/comparison/",2048,4096)
+gain_map = generate_gain_map("../test_images/calibration/GainMap.raw",2048,4096)
+offset_map = generate_gain_map("../test_images/calibration/OffsetMap.raw",2048,4096)
+corrected = projection_correction(images,gain_map,offset_map)
+viewer(corrected)
+viewer(comparison)

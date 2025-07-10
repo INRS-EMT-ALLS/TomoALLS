@@ -16,7 +16,7 @@ def viewer(images):
     napari.run()
 
 def image_importer(path, height, width, dtype=np.uint16):
-    return np.fromfile(path, dtype=dtype).reshape((height, width)).astype(np.float32)
+    return np.fromfile(path, dtype=dtype).reshape((height, width)).astype(np.float32)+1
 
 def directory_images_importer(dir, height, width, dtype=np.uint16):
     files = [f for f in listdir(dir) if isfile(join(dir, f))]
