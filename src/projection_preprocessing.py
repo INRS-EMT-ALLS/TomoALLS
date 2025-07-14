@@ -103,7 +103,7 @@ def remove_streaks(image,max_iterations = 20):
         # image_list.append(np.copy(np.log1p(np.abs(fft_complex))))
         # image_list.append(np.copy(np.real(ifft2(ifftshift(fft_complex)))))
         counter+=1
-        print(counter)
+        # print(counter)
         x,y,max = get_maximum_coordinates(peak_mask)
         for i in [-1,0,1]:
             for j in [-1,0,1]:
@@ -176,13 +176,15 @@ def generate_bad_pixel_map(path, height, width, dtype=np.uint16):
     return bad_pixel_map
 
 def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,min_y,max_y):
+    if len(images.shape) == 2:
+        images = np.array([images])
     corrected_frames = np.zeros(images.shape)
     averaged = np.zeros(images.shape[1:])
     kernel_size = 11
     kernel = np.zeros([kernel_size,kernel_size])
     kernel[:,:] = 1/(kernel_size*kernel_size)
+
     for i in range(images.shape[0]):
-        print(i)
         frame = gain_correction(images[i,:,:],gain_map,offset_map)
         # normalized = normalize(frame)
         bp_corrected = bad_pixel_correction(frame,bad_pixel_map)
@@ -191,7 +193,7 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,m
 
     for i in range(images.shape[0]):
         phase_difference, error, diffphase = phase_cross_correlation(corrected_frames[0,min_x:max_x,min_y:max_y], corrected_frames[i,min_x:max_x,min_y:max_y],upsample_factor=10)
-        print(phase_difference,error,diffphase)
+        # print(phase_difference,error,diffphase)
         corrected_frames[i, :, :] = shift(
             corrected_frames[i, :, :], shift=(-phase_difference[0], -phase_difference[1]), order=1, mode='nearest'
         )
@@ -199,5 +201,5 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,m
     for i in range(images.shape[0]):
         averaged+=corrected_frames[i, :, :]
 
-    averaged = remove_streaks(averaged)
+    averaged = normalize(clip_extremes(remove_streaks(averaged),2))
     return corrected_frames,averaged

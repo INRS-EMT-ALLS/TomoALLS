@@ -8,5 +8,8 @@ share/
 test_images/
 .ropeproject/
 src/__pycache__/
-.pyc
+*.pyc
 lib64
+*.raw
+examples/raw_projections/
+examples/corrected_projections/

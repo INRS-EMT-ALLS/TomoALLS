@@ -1,7 +1,5 @@
 
 import numpy as np
-import napari
-import numpy as np
 import os
 import shutil
 from scipy.ndimage import zoom, convolve, label
@@ -10,7 +8,10 @@ from skimage.filters import window
 from os import listdir
 from os.path import isfile, join
 
+def image_exporter(image, path, dtype=np.uint16):
 
+    image = np.clip(image - 1, 0, np.iinfo(dtype).max).astype(dtype)
+    image.tofile(path)
 
 def image_importer(path, height, width, dtype=np.uint16):
     return np.fromfile(path, dtype=dtype).reshape((height, width)).astype(np.float32)+1
