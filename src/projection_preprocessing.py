@@ -1,6 +1,6 @@
 
 import numpy as np
-
+import napari
 import numpy as np
 import os
 import shutil
@@ -13,7 +13,7 @@ import math
 
 
 from projection_io import image_importer, directory_images_importer
-from projection_visualization import viewer
+from projection_visualization import viewer, fft_viewer
 
 def gain_correction(image,gain_map,offset_map):
     corrected = (image-offset_map+ 2e-8)/(gain_map-offset_map+ 2e-8)
@@ -77,19 +77,7 @@ def generate_offset_map(path, height, width, dtype=np.uint16):
 
     return offset_map
 
-def generate_bad_pixel_map(path, def projection_correction(images,gain_map,offset_map,bad_pixel_map):
-    corrected_frames = np.zeros(images.shape)
-    averaged = np.zeros(images.shape[1:])
-    for i in range(images.shape[0]):
-        print(i)
-        frame = gain_correction(images[i,:,:],gain_map,offset_map)
-        # normalized = normalize(frame)
-        corrected_frames[i,:,:]=bad_pixel_correction(frame,bad_pixel_map)
-        averaged+=corrected_frames[i,:,:]
-
-
-    return corrected_frames,averaged
-height, width, dtype=np.uint16):
+def generate_bad_pixel_map(path, height, width, dtype=np.uint16):
 
     if not isfile(path):
         bad_pixel_stack = directory_images_importer(path, height, width, dtype=np.uint16)
@@ -120,12 +108,13 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map):
 images = directory_images_importer("../test_images/projections/",2048,4096)
 comparison = directory_images_importer("../test_images/comparison/",2048,4096)
 gain_map = generate_gain_map("../test_images/calibration/GainMap.raw",2048,4096)
-offset_map = generate_gain_map("../test_images/calibration/OffsetMap.raw",2048,4096)
+offset_map = generate_offset_map("../test_images/calibration/OffsetMap.raw",2048,4096)
 bad_pixel_map = generate_bad_pixel_map("../test_images/calibration/BPMap.raw",2048,4096)
 
 
-corrected,averaged = projection_correction(images,gain_map,offset_map,bad_pixel_map)
-viewer(averaged)
 
-viewer(corrected)
+corrected,averaged = projection_correction(images,gain_map,offset_map,bad_pixel_map)
+
+fft_viewer(corrected)
+fft_viewer(averaged)
 viewer(comparison)
