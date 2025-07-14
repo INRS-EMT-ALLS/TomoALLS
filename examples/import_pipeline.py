@@ -46,6 +46,6 @@ i = 0
 for folder in sorted_folders:
     print(i,folder)
     images = directory_images_importer(raw_projection_path+folder+"/"+raw_frames_folder,2048,4096)
-    corrected,averaged = projection_correction(images[:,:,:],gain_map,offset_map,bad_pixel_map,228,2000,364,2078)
+    averaged = projection_correction(images[:,:,:],gain_map,offset_map,bad_pixel_map,228,2000,364,2078)
     image_exporter(averaged,export_path+str(i)+".raw")
     i+=increment

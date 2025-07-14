@@ -184,7 +184,10 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,m
     kernel = np.zeros([kernel_size,kernel_size])
     kernel[:,:] = 1/(kernel_size*kernel_size)
 
+
+
     for i in range(images.shape[0]):
+        print(f"Correcting projection: {i}")
         frame = gain_correction(images[i,:,:],gain_map,offset_map)
         # normalized = normalize(frame)
         bp_corrected = bad_pixel_correction(frame,bad_pixel_map)
@@ -192,6 +195,8 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,m
         corrected_frames[i,:,:] = removed_streaks
 
     for i in range(images.shape[0]):
+        print(f"Calculating phase difference: {i}")
+
         phase_difference, error, diffphase = phase_cross_correlation(corrected_frames[0,min_x:max_x,min_y:max_y], corrected_frames[i,min_x:max_x,min_y:max_y],upsample_factor=10)
         # print(phase_difference,error,diffphase)
         corrected_frames[i, :, :] = shift(
@@ -201,5 +206,8 @@ def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,m
     for i in range(images.shape[0]):
         averaged+=corrected_frames[i, :, :]
 
-    averaged = normalize(clip_extremes(remove_streaks(averaged),2))
-    return corrected_frames,averaged
+    print(f"Final correction")
+
+    averaged = -normalize(clip_extremes(remove_streaks(averaged),2))
+    averaged+=1
+    return averaged
