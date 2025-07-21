@@ -7,6 +7,7 @@ def extract_datetime(folder_name):
     return datetime.strptime(timestamp, "%Y-%m-%d_%H-%M-%S")
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
 from projection_io import image_importer, directory_images_importer,image_exporter
 from projection_visualization import viewer, fft_viewer, pixel_histogram_viewer,fft_pixel_histogram_viewer
 from projection_preprocessing import generate_gain_map, generate_offset_map, generate_bad_pixel_map,projection_correction
@@ -15,14 +16,12 @@ from projection_preprocessing import generate_gain_map, generate_offset_map, gen
 height,width = 2048,4096
 max_angle = 360
 
-export_path = "examples/corrected_projections/"
+export_path = "examples/corrected_projections_complete/"
 raw_projection_path = "examples/raw_projections/"
 calibration_path = "Calibration/"
-bad_pixel_map_file_name = "BPMap.raw"
 gain_map_path_file_name = "GainMap.raw"
 offset_map_path_file_name = "OffsetMap.raw"
 
-bad_pixel_map_path = raw_projection_path+calibration_path+bad_pixel_map_file_name
 gain_map_path = raw_projection_path+calibration_path+gain_map_path_file_name
 offset_map_path = raw_projection_path+calibration_path+offset_map_path_file_name
 
@@ -37,15 +36,16 @@ capture_folders = [f for f in all_folders if f.startswith(projection_folder_pref
 
 sorted_folders = sorted(capture_folders, key=extract_datetime)
 
-# images = directory_images_importer("../test_images/projections/",2048,4096)
 gain_map = generate_gain_map(gain_map_path,height,width)
 offset_map = generate_offset_map(offset_map_path,height,width)
-bad_pixel_map = generate_bad_pixel_map(bad_pixel_map_path,height,width)
+bad_pixel_map = generate_bad_pixel_map(gain_map_path,height,width)
 increment = round(max_angle/len(sorted_folders))
-i = 0
-for folder in sorted_folders:
+start_index = 0
+i = start_index*increment
+for folder in sorted_folders[start_index:]:
     print(i,folder)
     images = directory_images_importer(raw_projection_path+folder+"/"+raw_frames_folder,2048,4096)
-    averaged = projection_correction(images[:,:,:],gain_map,offset_map,bad_pixel_map,228,2000,364,2078)
+    averaged = projection_correction(images[:,:,:],gain_map,offset_map,bad_pixel_map,512,2080,1835,2800)
+    viewer(averaged)
     image_exporter(averaged,export_path+str(i)+".raw")
     i+=increment

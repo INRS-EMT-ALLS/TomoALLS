@@ -9,7 +9,8 @@ from projection_visualization import viewer, fft_viewer, pixel_histogram_viewer,
 from projection_preprocessing import generate_gain_map, generate_offset_map, generate_bad_pixel_map,projection_correction,normalize
 
 
+
 height,width = 2048,4096
-corrected_path = "examples/corrected_projections/"
+corrected_path ="examples/corrected_projections_complete"
 images = directory_images_importer(corrected_path,2048,4096)
-viewer(images[0])
+viewer(images)

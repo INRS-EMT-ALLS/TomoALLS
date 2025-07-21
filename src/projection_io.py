@@ -15,16 +15,16 @@ def normalize(image):
 def image_exporter(image, path, dtype=np.uint16):
     image = normalize(image)
     max_val = np.iinfo(dtype).max  # 65535 for uint16
-    scaled = (image * max_val).round().astype(dtype)
+    scaled = (image * max_val).round().astype(np.uint16)
     scaled.tofile(path)
-
 def image_importer(path, height, width, dtype=np.uint16):
     return np.fromfile(path, dtype=dtype).reshape((height, width)).astype(np.float32)
 
 def directory_images_importer(dir, height, width, dtype=np.uint16):
     files = [f for f in listdir(dir) if isfile(join(dir, f))]
 
-    images = np.zeros([len(files),height,width])
+    images = np.zeros([len(files),height,width]).astype(np.float32)
+    print(images.dtype)
 
     for i, file in enumerate(files):
         images[i,:,:] = image_importer(join(dir,file),height,width)

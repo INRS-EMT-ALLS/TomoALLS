@@ -4,17 +4,121 @@ import napari
 import numpy as np
 import os
 import shutil
-from scipy.ndimage import zoom, convolve, label, shift
+from scipy.ndimage import zoom, convolve, label, shift,median_filter
 from scipy.fft import fft2, fftshift, ifft2, ifftshift
 from skimage.filters import window
 from os import listdir
 from os.path import isfile, join
 import math
 from skimage.registration import phase_cross_correlation
-
-
+import cv2
+import time
 from projection_io import image_importer, directory_images_importer
 from projection_visualization import viewer, fft_viewer, pixel_histogram_viewer,fft_pixel_histogram_viewer
+
+sobel_3d_x = np.array([[[-1,-2,-1],[0,0,0],[1,2,1]],[[-2,-3,2],[0,0,0],[2,3,2]],[[-1,-2,-1],[0,0,0],[1,2,1]]])
+sobel_3d_y = np.array([[[-1,0,1],[-2,0,2],[-1,0,1]],[[-2,0,2],[-3,0,3],[-2,0,2]],[[-1,0,1],[-2,0,2],[-1,0,1]]])
+sobel_3d_z = np.array([[[-1,-2,-1],[-2,-3,-2],[-1,-2,-1]],[[0,0,0],[0,0,0],[0,0,0]],[[1,2,1],[2,3,2],[1,2,1]]])
+
+sobel_2d_x =  np.array([[-1,-2,-1],[0,0,0],[1,2,1]])
+sobel_2d_y =   np.array([[-1,0,1],[-2,0,2],[-1,0,1]])
+
+sobel_kernels_3d = [sobel_3d_x,sobel_3d_y,sobel_3d_z]
+
+sobel_kernels_2d = [sobel_2d_x,sobel_2d_y]
+
+def sharpen(volume):
+    result = np.zeros(volume.shape)
+    for kernel in sobel_kernels_2d:
+        result+= convolve(volume,kernel)**4
+    return result
+
+def get_maximum_coordinates_depricated(image):
+    max = image.max()
+    for i in range(image.shape[0]):
+        for j in range(image.shape[1]):
+            if image[i,j] == max:
+                return i,j, max
+
+def get_maximum_coordinates(image):
+    flattened = np.ravel(image)
+    index = np.argmax(flattened)
+    j = index % image.shape[1]
+    i = math.floor(index/image.shape[1])
+    max = flattened[index]
+
+    return i,j, max
+
+def remove_streaks_new(image,max_iterations = 20):
+
+    fft_list = []
+    image_list = []
+    if len(image.shape) > 2:
+        image = image[0,:,:]
+    center_mask_size = 201
+    distribution_range = 51
+    replacement_range = 11
+    mean_size = 25
+    mean_kernel = np.ones([mean_size,mean_size])/(mean_size*mean_size)
+
+
+    offset = math.floor(distribution_range/2)
+    subimage_offset = math.floor(replacement_range/2)
+    fft_complex = fftshift(fft2(image))
+
+    peak_mask = np.copy(fft_complex)
+    center_x, center_y = peak_mask.shape
+
+    center_x = math.floor(center_x/2)
+    center_y = math.floor(center_y/2)
+
+    min_x, max_x = center_x - math.floor(center_mask_size/2),center_x+math.floor(center_mask_size/2)
+    min_y, max_y = center_y - math.floor(center_mask_size/2),center_y+math.floor(center_mask_size/2)
+
+    peak_mask[min_x:max_x,min_y:max_y] = 0
+
+    counter = 0
+
+    while True:
+        # a = np.log1p(np.abs(fft_complex))
+        # fft_list.append(
+        #     np.copy(
+        #    (a
+        #     ))
+        # )
+        # image_list.append(np.copy(np.real(ifft2(ifftshift(fft_complex)))))
+        counter+=1
+
+        x,y,max = get_maximum_coordinates(peak_mask)
+
+        peak_mask[x,y] = 0
+        distribution_set = clip_extremes(fft_complex[x-offset:x+offset,y-offset:y+offset])
+        std = np.std(distribution_set)
+        mean =np.mean(distribution_set)
+        replacement_area = np.random.normal(loc=mean,scale=std,size=[replacement_range,replacement_range])
+        if fft_complex[x-subimage_offset:x+subimage_offset+1,y-subimage_offset:y+subimage_offset+1].shape != replacement_area.shape:
+            break
+        fft_complex[x-subimage_offset:x+subimage_offset+1,y-subimage_offset:y+subimage_offset+1] = replacement_area
+        peak_mask[x-subimage_offset:x+subimage_offset+1,y-subimage_offset:y+subimage_offset+1] = replacement_area
+        # print(counter)
+        if counter >= max_iterations:
+            break
+
+
+    reconstructed = np.real(ifft2(ifftshift(fft_complex)))
+    viz = np.zeros([len(image_list),fft_complex.shape[0],fft_complex.shape[1]])
+    # for i in range(len(image_list)):
+    #     viz[i,:,:] = image_list[i]
+    # viewer(viz)
+    # viz = np.zeros([len(fft_list),fft_complex.shape[0],fft_complex.shape[1]])
+    # for i in range(len(fft_list)):
+    #     viz[i,:,:] = fft_list[i]
+    # viewer(viz)
+    return reconstructed
+
+
+
+
 
 def gain_correction(image,gain_map,offset_map):
     corrected = (image-offset_map+ 2e-8)/(gain_map-offset_map+ 2e-8)
@@ -56,15 +160,9 @@ def clip_extremes(image, sigma = 3):
 
     return filtered
 
-def get_maximum_coordinates(image):
-    max = image.max()
-    for i in range(image.shape[0]):
-        for j in range(image.shape[1]):
-            if image[i,j] == max:
-                return i,j, max
 
 
-def remove_streaks(image,max_iterations = 20):
+def remove_streaks(image,max_iterations = 30):
     image_list = []
     if len(image.shape) > 2:
         image = image[0,:,:]
@@ -100,7 +198,7 @@ def remove_streaks(image,max_iterations = 20):
 
 
     while True:
-        # image_list.append(np.copy(np.log1p(np.abs(fft_complex))))
+        image_list.append(np.copy(np.log1p(np.abs(fft_complex))))
         # image_list.append(np.copy(np.real(ifft2(ifftshift(fft_complex)))))
         counter+=1
         # print(counter)
@@ -122,10 +220,10 @@ def remove_streaks(image,max_iterations = 20):
 
 
     reconstructed = np.real(ifft2(ifftshift(fft_complex)))
-    # viz = np.zeros([len(image_list),fft_complex.shape[0],fft_complex.shape[1]])
-    # for i in range(len(image_list)):
-    #     viz[i,:,:] = image_list[i]
-    # viewer(viz)
+    viz = np.zeros([len(image_list),fft_complex.shape[0],fft_complex.shape[1]])
+    for i in range(len(image_list)):
+        viz[i,:,:] = image_list[i]
+    viewer(viz)
     return reconstructed
 
 def normalize(image):
@@ -143,7 +241,6 @@ def generate_gain_map(path, height, width, dtype=np.uint16):
         return gain_map
     else:
         gain_map = image_importer(path, height, width, dtype=np.uint16)
-
     return gain_map
 
 def generate_offset_map(path, height, width, dtype=np.uint16):
@@ -157,57 +254,52 @@ def generate_offset_map(path, height, width, dtype=np.uint16):
         return offset_map
     else:
         offset_map = image_importer(path, height, width, dtype=np.uint16)
+        return offset_map
 
-    return offset_map
-
-def generate_bad_pixel_map(path, height, width, dtype=np.uint16):
+def generate_bad_pixel_map(path, height, width, dtype=np.uint16,kernel_size = 33,ratio=0.3):
 
     if not isfile(path):
-        bad_pixel_stack = directory_images_importer(path, height, width, dtype=np.uint16)
-        bad_pixel_map = np.zeros(bad_pixel_stack.shape[1:]).astype(np.float32)
-        for i in range(bad_pixel_stack.shape[0]):
-            bad_pixel_map += bad_pixel_stack[i,:,:]
+        gain_map_stack = directory_images_importer(path, height, width, dtype=np.uint16)
+        gain_map = np.zeros(gain_map_stack.shape[1:]).astype(np.float32)
+        for i in range(gain_map_stack.shape[0]):
+            gain_map += gain_map_stack[i,:,:]
             i+=1
-        return bad_pixel_map
+        gain_map = gain_map/gain_map_stack.shape[0]
+        average_map = cv2.blur(gain_map,(kernel_size,kernel_size))
+        ratio_map = np.abs((gain_map/average_map)-1)
+        result = np.where(ratio_map<ratio,1,0)
+        return result
     else:
-        bad_pixel_map = image_importer(path, height, width, dtype=np.uint16)
-
-    bad_pixel_map = np.round(-(normalize(bad_pixel_map))+1)
-    return bad_pixel_map
+        gain_map = image_importer(path, height, width, dtype=np.uint16)
+        average_map = cv2.blur(gain_map,(kernel_size,kernel_size))
+        ratio_map = np.abs((gain_map/average_map)-1)
+        result = np.where(ratio_map<ratio,1,0)
+        return result
 
 def projection_correction(images,gain_map,offset_map,bad_pixel_map,min_x,max_x,min_y,max_y):
+
     if len(images.shape) == 2:
         images = np.array([images])
     corrected_frames = np.zeros(images.shape)
     averaged = np.zeros(images.shape[1:])
-    kernel_size = 11
-    kernel = np.zeros([kernel_size,kernel_size])
-    kernel[:,:] = 1/(kernel_size*kernel_size)
-
-
-
     for i in range(images.shape[0]):
         print(f"Correcting projection: {i}")
         frame = gain_correction(images[i,:,:],gain_map,offset_map)
-        # normalized = normalize(frame)
         bp_corrected = bad_pixel_correction(frame,bad_pixel_map)
-        removed_streaks = remove_streaks(bp_corrected)
+        removed_streaks = remove_streaks_new(bp_corrected)
         corrected_frames[i,:,:] = removed_streaks
-
-    for i in range(images.shape[0]):
-        print(f"Calculating phase difference: {i}")
-
-        phase_difference, error, diffphase = phase_cross_correlation(corrected_frames[0,min_x:max_x,min_y:max_y], corrected_frames[i,min_x:max_x,min_y:max_y],upsample_factor=10)
-        # print(phase_difference,error,diffphase)
-        corrected_frames[i, :, :] = shift(
-            corrected_frames[i, :, :], shift=(-phase_difference[0], -phase_difference[1]), order=1, mode='nearest'
-        )
-
+    for i in range(corrected_frames.shape[0]):
+        print(f"Aligning frame {i}")
+        img2 = np.round(normalize(median_filter(clip_extremes(corrected_frames[0,min_x:max_x,min_y:max_y],0.1),3)))
+        img1 = np.round(normalize(median_filter(clip_extremes(corrected_frames[i,min_x:max_x,min_y:max_y],0.1),3)))
+        shift, response = cv2.phaseCorrelate(img1, img2)
+        dx, dy = shift
+        M = np.float32([[1, 0, dx], [0, 1, dy]])
+        corrected_frames[i,:,:] = cv2.warpAffine(corrected_frames[i,:,:], M, (corrected_frames[i,:,:].shape[1], corrected_frames[i,:,:].shape[0]))
     for i in range(images.shape[0]):
         averaged+=corrected_frames[i, :, :]
-
     print(f"Final correction")
-
-    averaged = -normalize(clip_extremes(remove_streaks(averaged),2))
+    averaged = -normalize(averaged)
     averaged+=1
+    # viewer(averaged)
     return averaged

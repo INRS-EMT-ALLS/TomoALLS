@@ -4,7 +4,6 @@ from scipy.fft import fft2, fftshift, ifft2, ifftshift
 import matplotlib.pyplot as plt
 
 def viewer(images):
-
     viewer, image_layer = napari.imshow(images)
     napari.run()
 
