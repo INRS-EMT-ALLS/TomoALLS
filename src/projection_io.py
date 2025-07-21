@@ -24,7 +24,6 @@ def directory_images_importer(dir, height, width, dtype=np.uint16):
     files = [f for f in listdir(dir) if isfile(join(dir, f))]
 
     images = np.zeros([len(files),height,width]).astype(np.float32)
-    print(images.dtype)
 
     for i, file in enumerate(files):
         images[i,:,:] = image_importer(join(dir,file),height,width)
