@@ -24,7 +24,7 @@ def pixel_histogram_viewer(images):
 
     if len(images.shape) == 3:
         raw = images[0,:,:]
-        plt.hist(raw.ravel(), bins=512, color='gray', edgecolor='black')
+        plt.hist(raw.ravel(22), bins=512, color='gray', edgecolor='black')
         plt.xlabel("Pixel Value")
         plt.ylabel("Frequency")
         plt.show()

@@ -11,6 +11,6 @@ from projection_preprocessing import generate_gain_map, generate_offset_map, gen
 
 
 height,width = 2048,4096
-corrected_path ="examples/corrected_projections_complete"
+corrected_path ="examples/corrected_projections_complete_clip"
 images = directory_images_importer(corrected_path,2048,4096)
 viewer(images)
