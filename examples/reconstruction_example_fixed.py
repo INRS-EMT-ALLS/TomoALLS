@@ -1,3 +1,4 @@
+from scipy.ndimage import zoom, convolve, label, shift,median_filter
 
 import scipy
 import numpy as np
@@ -33,7 +34,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 
 from projection_io import image_importer, directory_images_importer,image_exporter
 from projection_visualization import viewer, fft_viewer, pixel_histogram_viewer,fft_pixel_histogram_viewer
-from projection_preprocessing import generate_gain_map, generate_offset_map, generate_bad_pixel_map,projection_correction,normalize
+from projection_preprocessing import generate_gain_map, generate_offset_map, generate_bad_pixel_map,projection_correction,normalize,clip_extremes
 
 
 sobel_x = np.array([[[-1,-2,-1],[0,0,0],[1,2,1]],[[-2,-3,2],[0,0,0],[2,3,2]],[[-1,-2,-1],[0,0,0],[1,2,1]]])
@@ -87,14 +88,14 @@ def black_box(params):
     z_min = 0
     z_max = 1024
 
-    x_min = 476
-    x_max = 680
+    x_min = 450
+    x_max = 700
 
     y_min = 0
     y_max = 1024
 
 
-    voxel_size = 0.008
+    voxel_size = 0.004
 
 
     vol_size_x = int(((x_max-x_min)*initial_voxel_size)/voxel_size)
@@ -134,7 +135,7 @@ def black_box(params):
     moduleCenters = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
     colVectors = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
     rowVectors = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
-
+    leapct.set_projector('VD')
     T_phi = 2.0*np.pi/float(numAngles)
     for n in range(numAngles):
         phi = n*T_phi
@@ -155,24 +156,44 @@ def black_box(params):
     f = leapct.allocateVolume()
 
     f[:] = 0.0
+    a = np.copy(g)
 
+    leapct.SART(a,f,40,40)
+    # f = normalize(f)*(2**12)
+    # hist = scipy.ndimage.histogram(f,bins = round(f.max()),min=0,max=f.max())
+    # hist[0]=0
+    # bin_edges = np.arange(start=0, stop=len(hist), step=1)
+    # res = hist*cut(bin_edges)
+    # leapct.display(g)
+    a[:] = 0
+    leapct.project(a,f)
+    # leapct.display(f)
+    # leapct.display(a)
+    # leapct.display(g)
 
-    leapct.SART(g,f,3,3)
-    f = normalize(f)*(2**12)
-    hist = scipy.ndimage.histogram(f,bins = round(f.max()),min=0,max=f.max())
-    hist[0]=0
-    bin_edges = np.arange(start=0, stop=len(hist), step=1)
-    res = hist*cut(bin_edges)
-    print("current: ",np.sum(res)/1000000000,params)
-    plt.bar(bin_edges, res, width = 1)
-    plt.xlim(min(bin_edges), max(bin_edges))
-    plt.show()
+    loss = (normalize(np.abs(normalize(g) - normalize(a))))
+    # leapct.display(loss)
 
+    img1 = np.round(normalize(median_filter(clip_extremes(a,0.1),3)))
+    img2 = np.round(normalize(median_filter(clip_extremes(g,0.1),3)))
+    # leapct.display(img1)
+    # leapct.display(img2)
+
+    loss = (normalize(np.abs(normalize(img1) - normalize(img2))))
+    leapct.display(loss)
+    # leapct.display(f)
+
+    loss = np.sum(loss)
+    print("current: ",loss,params)
     leapct.display(f)
-    return -np.sum(res)
+    leapct.display(a)
+    # leapct.display(g)
+
+    return loss
+# black_box([-1.0, 1.0, -0.02700343192181287, -0.03, -0.0017970337683101759])
 res = gp_minimize(black_box,            # the function to minimize
-                  [(-2.0, 2.0),(-2.0, 2.0),(-2.0, 2.0),(-0.03,0.03),(-0.03,0.03)],      # the bounds on each dimension of x,
-                  x0=[0.01055437631387024, -0.03230519148056299, -0.008849894871733266, -0.0010193090723043634, 0.0008550679323881261],
+                  [(-2.0, 2.0),(-2.0, 2.0),(-2.0, 2.0),(-0.10,0.10),(-0.10,0.10)],      # the bounds on each dimension of x,
+                  x0=[1.3521324266376205, 1.9457712957749504, -0.074152617285826, -0.05118715717364691, 0.005491918172085386],
                   n_calls=100,         # the number of evaluations of f including at x0
                   n_random_starts=5,  # the number of random initial points
                   random_state=778)
