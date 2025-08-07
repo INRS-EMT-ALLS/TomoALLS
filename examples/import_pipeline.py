@@ -16,7 +16,7 @@ from projection_preprocessing import generate_gain_map, generate_offset_map, gen
 height,width = 2048,4096
 max_angle = 360
 
-export_path = "examples/corrected_projections_complete/"
+export_path = "examples/corrected_projections_complete"
 raw_projection_path = "examples/raw_projections/"
 calibration_path = "Calibration/"
 gain_map_path_file_name = "GainMap.raw"
@@ -49,5 +49,6 @@ for i in tqdm(range(start_index,len(sorted_folders)),desc="Preprocess pipeline")
     # print(i,folder)
     images = directory_images_importer(raw_projection_path+folder+"/"+raw_frames_folder,2048,4096)
     averaged = projection_correction(images[:,:,:],gain_map,offset_map,bad_pixel_map,512,2080,1835,2800)
+    viewer(averaged)
     image_exporter(averaged,export_path+str(file_value)+".raw")
     file_value+=increment

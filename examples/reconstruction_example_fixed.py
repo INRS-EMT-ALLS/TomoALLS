@@ -158,7 +158,7 @@ def black_box(params):
     f[:] = 0.0
     a = np.copy(g)
 
-    leapct.SART(a,f,40,40)
+    leapct.SART(a,f,3,40)
     # f = normalize(f)*(2**12)
     # hist = scipy.ndimage.histogram(f,bins = round(f.max()),min=0,max=f.max())
     # hist[0]=0
@@ -176,24 +176,32 @@ def black_box(params):
 
     img1 = np.round(normalize(median_filter(clip_extremes(a,0.1),3)))
     img2 = np.round(normalize(median_filter(clip_extremes(g,0.1),3)))
-    # leapct.display(img1)
-    # leapct.display(img2)
 
-    loss = (normalize(np.abs(normalize(img1) - normalize(img2))))
-    leapct.display(loss)
+    # # leapct.display(img1)
+    # # leapct.display(img2)
+    loss = ((normalize(g) - normalize(a))**2)*img2
+    for i in range(loss.shape[0]):
+        loss[i,:,:] = normalize(loss[i,:,:])
+
+    loss2 = normalize(clip_extremes(normalize(np.abs(normalize(img1) - normalize(img2)))),)
+    # leapct.display(loss2)
+    # leapct.display(loss+loss2)
+
+
+    loss3 = np.sum(loss+loss2)
+    print("current: ",loss3,params)
+    # leapct.display(a)
     # leapct.display(f)
+    # leapct.display(loss)
+    # leapct.display(loss2)
 
-    loss = np.sum(loss)
-    print("current: ",loss,params)
-    leapct.display(f)
-    leapct.display(a)
-    # leapct.display(g)
 
-    return loss
+    return loss3
+
 # black_box([-1.0, 1.0, -0.02700343192181287, -0.03, -0.0017970337683101759])
 res = gp_minimize(black_box,            # the function to minimize
-                  [(-2.0, 2.0),(-2.0, 2.0),(-2.0, 2.0),(-0.10,0.10),(-0.10,0.10)],      # the bounds on each dimension of x,
-                  x0=[1.3521324266376205, 1.9457712957749504, -0.074152617285826, -0.05118715717364691, 0.005491918172085386],
+                  [(1.3521324266376205-0.25, 1.3521324266376205+0.25),(1.9457712957749504-0.25, 1.9457712957749504+0.25),(-0.074152617285826-0.25, -0.074152617285826+0.25),(-0.05118715717364691-0.01,-0.05118715717364691+0.01),(0.005491918172085386-0.01,0.005491918172085386+0.01)],      # the bounds on each dimension of x,
+                  x0=[1.500644695072536, 2.1031947017660872, -0.028829889565389233, -0.05690782511163468, 0.004837986876485113],
                   n_calls=100,         # the number of evaluations of f including at x0
                   n_random_starts=5,  # the number of random initial points
                   random_state=778)
