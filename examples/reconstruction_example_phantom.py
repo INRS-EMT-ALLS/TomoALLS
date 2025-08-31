@@ -1,0 +1,151 @@
+from scipy.ndimage import zoom, convolve, label, shift,median_filter
+import scipy
+import numpy as np
+from skopt import gp_minimize
+from scipy import ndimage
+import matplotlib.pyplot as plt
+import sys
+from matplotlib.widgets import Slider
+from scipy.ndimage import zoom, convolve, label
+import time
+import numpy as np
+import copy
+import matplotlib.pyplot as plt
+from PIL import Image
+from IPython.display import clear_output
+import math
+import random
+import napari
+import numpy as np
+import os
+import shutil
+import numpy as np
+import matplotlib.pyplot as plt
+from scipy.fft import fft2, fftshift, ifft2, ifftshift
+from skimage.filters import window
+import copy
+from leapctype import *
+
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+from projection_io import image_importer, directory_images_importer,image_exporter
+from projection_visualization import viewer, fft_viewer, pixel_histogram_viewer,fft_pixel_histogram_viewer
+from projection_preprocessing import generate_gain_map, generate_offset_map, generate_bad_pixel_map,projection_correction,normalize,clip_extremes
+
+
+sobel_x = np.array([[[-1,-2,-1],[0,0,0],[1,2,1]],[[-2,-3,2],[0,0,0],[2,3,2]],[[-1,-2,-1],[0,0,0],[1,2,1]]])
+sobel_y = np.array([[[-1,0,1],[-2,0,2],[-1,0,1]],[[-2,0,2],[-3,0,3],[-2,0,2]],[[-1,0,1],[-2,0,2],[-1,0,1]]])
+sobel_z = np.array([[[-1,-2,-1],[-2,-3,-2],[-1,-2,-1]],[[0,0,0],[0,0,0],[0,0,0]],[[1,2,1],[2,3,2],[1,2,1]]])
+
+
+sobel_kernels = [sobel_x,sobel_y,sobel_z]
+
+def sharpness(volume):
+    result = np.zeros(volume.shape)
+    for kernel in sobel_kernels:
+        result+= convolve(volume,kernel)**2
+    return result
+
+def angles_to_vec(angles):
+    return np.array([np.cos(angles[0])*np.cos(angles[1]),np.cos(angles[0])*np.sin(angles[1]),np.sin(angles[0])])
+
+
+def rotate(tau,vec,theta):
+  return vec * np.cos(theta) + np.cross(tau,vec)*np.sin(theta) + tau * np.dot(tau,vec)*(1-np.cos(theta))
+
+
+
+tomogram_height = 512
+tomogram_width = 1024
+
+tomogram_cropped_min_x =  0
+tomogram_cropped_max_x =  1024
+
+tomogram_cropped_min_y = 0
+tomogram_cropped_max_y = 512
+
+tomogram_cropped_height = tomogram_cropped_max_y - tomogram_cropped_min_y
+tomogram_cropped_width = tomogram_cropped_max_x - tomogram_cropped_min_x
+
+tomogram_angles = 180
+pixelSize = 1
+
+initial_voxel_volume_x_len = 256
+initial_voxel_volume_y_len = 256
+initial_voxel_volume_z_len = 256
+initial_voxel_size = 1
+
+z_min = 0
+z_max = 256
+
+x_min = 0
+x_max = 256
+
+y_min = 0
+y_max = 256
+
+magnified_voxel_size = 1
+
+magnified_voxel_volume_x_len = int(((x_max-x_min)*initial_voxel_size)/initial_voxel_size)
+magnified_voxel_volume_y_len = int(((y_max-y_min)*initial_voxel_size)/initial_voxel_size)
+magnified_voxel_volume_z_len = int(((z_max-z_min)*initial_voxel_size)/initial_voxel_size)
+
+magnified_vol_pos_x = -((x_min+x_max)/2 - initial_voxel_volume_x_len/2)*initial_voxel_size
+magnified_vol_pos_y = -((y_min+y_max)/2 - initial_voxel_volume_y_len/2)*initial_voxel_size
+magnified_vol_pos_z = -((z_min+z_max)/2 - initial_voxel_volume_z_len/2)*initial_voxel_size
+
+numCols = tomogram_cropped_width
+numRows = tomogram_cropped_height
+
+numAngles = tomogram_angles
+
+
+source_to_detector = np.array([0,1000,0])
+source_to_volume = np.array([0,700,0])
+
+volume_to_magnified_area = np.array([magnified_vol_pos_x,magnified_vol_pos_y,magnified_vol_pos_z])
+
+detector_col_angles = np.array([0,0])
+detector_col_vec = angles_to_vec(detector_col_angles)
+detector_col_vec = detector_col_vec/np.linalg.norm(detector_col_vec)
+
+detector_rows_angles = np.array([-np.pi/2,0])
+detector_row_vec = angles_to_vec(detector_rows_angles)
+detector_row_vec = detector_row_vec/np.linalg.norm(detector_row_vec)
+
+volume_to_source = -source_to_volume
+volume_to_detector = volume_to_source+source_to_detector
+magnified_area_to_volume = -volume_to_magnified_area
+
+rotation_axis_angle = np.array([np.pi/4,0])
+rotation_axis = angles_to_vec(rotation_axis_angle)
+print(rotation_axis)
+rotation_axis = rotation_axis/np.linalg.norm(rotation_axis)
+
+sourcePositions = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
+moduleCenters = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
+colVectors = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
+rowVectors = np.ascontiguousarray(np.zeros((numAngles,3)).astype(np.float32), dtype=np.float32)
+
+
+T_phi = 2.0*np.pi/float(numAngles)
+
+for n in range(numAngles):
+    phi = n*T_phi
+    sourcePositions[n,:] = rotate(rotation_axis,volume_to_source,phi)+volume_to_magnified_area
+    moduleCenters[n,:] = rotate(rotation_axis,volume_to_detector,phi)+volume_to_magnified_area
+    rowVectors[n,:] = rotate(rotation_axis,detector_row_vec,phi)
+    colVectors[n,:] = rotate(rotation_axis,detector_col_vec,phi)
+
+
+leapct = tomographicModels()
+
+leapct.set_modularbeam(numAngles, numRows, numCols, pixelSize, pixelSize, sourcePositions, moduleCenters, rowVectors, colVectors)
+leapct.set_volume(magnified_voxel_volume_x_len,magnified_voxel_volume_y_len,magnified_voxel_volume_z_len,magnified_voxel_size,magnified_voxel_size)
+f = leapct.allocateVolume()
+leapct.set_FORBILD(f,True)
+g = leapct.allocate_projections()
+leapct.project(g,f)
+viewer(g)
+initial_tomograms = g

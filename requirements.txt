@@ -80,11 +80,12 @@ Pygments==2.19.2
 PyOpenGL==3.1.9
 pyparsing==3.2.3
 pyproject_hooks==1.2.0
-PyQt5==6.9.1
 python-dateutil==2.9.0.post0
+opencv-python
 pytz==2025.2
 PyYAML==6.0.2
 pyzmq==27.0.0
+scikit-optimize
 qtconsole==5.6.1
 QtPy==2.4.3
 referencing==0.36.2
@@ -120,3 +121,4 @@ urllib3==2.5.0
 vispy==0.15.2
 wcwidth==0.2.13
 wrapt==1.17.2
+pillow
