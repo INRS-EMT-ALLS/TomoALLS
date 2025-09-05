@@ -59,11 +59,11 @@ def rotate(tau,vec,theta):
 tomogram_height = 512
 tomogram_width = 1024
 
-tomogram_cropped_min_x =  0
-tomogram_cropped_max_x =  1024
+tomogram_cropped_min_x =  300
+tomogram_cropped_max_x =  700
 
 tomogram_cropped_min_y = 0
-tomogram_cropped_max_y = 512
+tomogram_cropped_max_y = 300
 
 tomogram_angles = 180
 pixelSize = 1
@@ -80,13 +80,16 @@ x_max = 256
 y_min = 0
 y_max = 256
 
-magnified_voxel_size = 1
+magnified_voxel_size = 0.5
 
 
 def project_initial_phantom(source_to_detector,source_to_volume,detector_col_angles,detector_row_angles,rotation_axis_angles):
 
     tomogram_cropped_height = tomogram_cropped_max_y - tomogram_cropped_min_y
     tomogram_cropped_width = tomogram_cropped_max_x - tomogram_cropped_min_x
+
+    cropped_offset_from_center_y = ((tomogram_cropped_max_y + tomogram_cropped_min_y)/2 -tomogram_height/2)
+    cropped_offset_from_center_x = ((tomogram_cropped_max_x + tomogram_cropped_min_x)/2 -tomogram_width/2)
 
     magnified_voxel_volume_x_len = int(((x_max-x_min)*initial_voxel_size)/initial_voxel_size)
     magnified_voxel_volume_y_len = int(((y_max-y_min)*initial_voxel_size)/initial_voxel_size)
@@ -110,9 +113,12 @@ def project_initial_phantom(source_to_detector,source_to_volume,detector_col_ang
 
     detector_row_vec = detector_row_vec/np.linalg.norm(detector_row_vec)
 
+    cropped_area_offset = detector_row_vec*pixelSize*cropped_offset_from_center_y+detector_col_vec*pixelSize*cropped_offset_from_center_x
+
     volume_to_source = -source_to_volume
-    volume_to_detector = volume_to_source+source_to_detector
+    volume_to_detector = volume_to_source+source_to_detector+cropped_area_offset
     magnified_area_to_volume = -volume_to_magnified_area
+
 
     rotation_axis = angles_to_vec(rotation_axis_angles)
     rotation_axis = rotation_axis/np.linalg.norm(rotation_axis)
@@ -126,8 +132,8 @@ def project_initial_phantom(source_to_detector,source_to_volume,detector_col_ang
 
     for n in range(numAngles):
         phi = n*T_phi
-        sourcePositions[n,:] = rotate(rotation_axis,volume_to_source,phi)+volume_to_magnified_area
-        moduleCenters[n,:] = rotate(rotation_axis,volume_to_detector,phi)+volume_to_magnified_area
+        sourcePositions[n,:] = rotate(rotation_axis,volume_to_source,phi)
+        moduleCenters[n,:] = rotate(rotation_axis,volume_to_detector,phi)
         rowVectors[n,:] = rotate(rotation_axis,detector_row_vec,phi)
         colVectors[n,:] = rotate(rotation_axis,detector_col_vec,phi)
 
@@ -135,7 +141,7 @@ def project_initial_phantom(source_to_detector,source_to_volume,detector_col_ang
     leapct = tomographicModels()
 
     leapct.set_modularbeam(numAngles, numRows, numCols, pixelSize, pixelSize, sourcePositions, moduleCenters, rowVectors, colVectors)
-    leapct.set_volume(magnified_voxel_volume_x_len,magnified_voxel_volume_y_len,magnified_voxel_volume_z_len,magnified_voxel_size,magnified_voxel_size)
+    leapct.set_volume(magnified_voxel_volume_x_len,magnified_voxel_volume_y_len,magnified_voxel_volume_z_len,initial_voxel_size,initial_voxel_size)
     f = leapct.allocateVolume()
     leapct.set_FORBILD(f,True)
     g = leapct.allocate_projections()
@@ -150,10 +156,13 @@ def backproject(base_tomograms,source_to_detector,source_to_volume,detector_col_
     tomogram_cropped_height = tomogram_cropped_max_y - tomogram_cropped_min_y
     tomogram_cropped_width = tomogram_cropped_max_x - tomogram_cropped_min_x
 
-    magnified_voxel_volume_x_len = int(((x_max-x_min)*initial_voxel_size)/initial_voxel_size)
-    magnified_voxel_volume_y_len = int(((y_max-y_min)*initial_voxel_size)/initial_voxel_size)
-    magnified_voxel_volume_z_len = int(((z_max-z_min)*initial_voxel_size)/initial_voxel_size)
+    cropped_offset_from_center_y = ((tomogram_cropped_max_y + tomogram_cropped_min_y)/2 -tomogram_height/2)
+    cropped_offset_from_center_x = ((tomogram_cropped_max_x + tomogram_cropped_min_x)/2 -tomogram_width/2)
 
+    magnified_voxel_volume_x_len = int((x_max-x_min)*initial_voxel_size/magnified_voxel_size)
+    magnified_voxel_volume_y_len = int((y_max-y_min)*initial_voxel_size/magnified_voxel_size)
+    magnified_voxel_volume_z_len = int((z_max-z_min)*initial_voxel_size/magnified_voxel_size)
+    print(magnified_voxel_volume_x_len,magnified_voxel_volume_y_len,magnified_voxel_volume_z_len)
     magnified_vol_pos_x = -((x_min+x_max)/2 - initial_voxel_volume_x_len/2)*initial_voxel_size
     magnified_vol_pos_y = -((y_min+y_max)/2 - initial_voxel_volume_y_len/2)*initial_voxel_size
     magnified_vol_pos_z = -((z_min+z_max)/2 - initial_voxel_volume_z_len/2)*initial_voxel_size
@@ -171,8 +180,10 @@ def backproject(base_tomograms,source_to_detector,source_to_volume,detector_col_
     detector_row_vec = angles_to_vec(detector_row_angles)
     detector_row_vec = detector_row_vec/np.linalg.norm(detector_row_vec)
 
+    cropped_area_offset = detector_row_vec*pixelSize*cropped_offset_from_center_y+detector_col_vec*pixelSize*cropped_offset_from_center_x
+
     volume_to_source = -source_to_volume
-    volume_to_detector = volume_to_source+source_to_detector
+    volume_to_detector = volume_to_source+source_to_detector+cropped_area_offset
     magnified_area_to_volume = -volume_to_magnified_area
 
     rotation_axis = angles_to_vec(rotation_axis_angles)
@@ -200,12 +211,23 @@ def backproject(base_tomograms,source_to_detector,source_to_volume,detector_col_
     f = leapct.allocateVolume()
     f[:] = 0
     g = base_tomograms
+    startTime = time.time()
+    # viewer(g)
     leapct.SART(g,f,3,3)
+    print('Reconstruction Elapsed Time: ' + str(time.time()-startTime))
+
     reconstruction = f
+    viewer(f)
     reprojection = np.zeros(base_tomograms.shape).astype(np.float32)
     leapct.project(reprojection,f)
-    loss = (normalize(np.abs(normalize(base_tomograms) - normalize(reprojection))))
 
+
+    loss = (normalize(np.abs(normalize(base_tomograms) - normalize(reprojection))))
+    # viewer(base_tomograms)
+
+    # viewer(reprojection)
+    # viewer(loss)
+    #
     img1 = np.round(normalize(median_filter(clip_extremes(reprojection,0.1),3)))
     img2 = np.round(normalize(median_filter(clip_extremes(base_tomograms,0.1),3)))
 
@@ -213,11 +235,18 @@ def backproject(base_tomograms,source_to_detector,source_to_volume,detector_col_
     for i in range(loss.shape[0]):
         loss[i,:,:] = normalize(loss[i,:,:])
 
-    loss2 = normalize(clip_extremes(normalize(np.abs(normalize(img1) - normalize(img2)))),)
-    loss3 = np.sum(loss+loss2)
+    loss2 = normalize(clip_extremes(normalize(np.abs(normalize(img1) - normalize(img2)))))
+    loss3 = loss+loss2
 
 
-    return loss3
+    # Image.fromarray((255*normalize(img1[0,:,:])).astype(np.uint8), mode='L').save("img1.jpeg")
+    # Image.fromarray((255*normalize(img2[0,:,:])).astype(np.uint8), mode='L').save("img2.jpeg")
+    # Image.fromarray((255*normalize(loss[0,:,:])).astype(np.uint8), mode='L').save("loss_1.5.jpeg")
+    # Image.fromarray((255*normalize(loss3[0,:,:])).astype(np.uint8), mode='L').save("loss_3.jpeg")
+
+
+
+    return np.sum(loss+loss2)
 
 
 def backprojection_optimizer(parameters):
@@ -257,21 +286,19 @@ detector_row_angles = np.array([-np.pi/2,0])
 rotation_axis_angles = np.array([np.pi/4,0])
 
 base_tomograms = project_initial_phantom(source_to_detector,source_to_volume,detector_col_angles,detector_row_angles,rotation_axis_angles)
-
-
-
+# viewer(base_tomograms)
 #PARAMETERS Optimization
 
 
 #GUESS PARAMETERS
 source_to_detector = np.array([0,1000,0])
-source_to_volume = np.array([0,700,50])
+source_to_volume = np.array([0,700,100])
 detector_col_angles = np.array([0,0])
 detector_row_angles = np.array([-np.pi/2,0])
 rotation_axis_angles = np.array([np.pi/4,0])
 
 params_range = [(-100,100),(-100,100),(-100,100),(-100,100),(-100,100),(-100,100),(-np.pi/2,np.pi/2),(0,2*np.pi),(-np.pi/2,np.pi/2),(0,2*np.pi),(-np.pi/2,np.pi/2),(0,2*np.pi)]
-initial_params = [0,1000,0,0,700,50,0,0,-np.pi/2,0,np.pi/4,0]
+initial_params = [0,1000,0,0,800,100,0,0,-np.pi/2,0,np.pi/4,0]
 res = gp_minimize(backprojection_optimizer,            # the function to minimize
                  [(-100,100),(-100,100),(-100,100),(-100,100),(-100,100),(-100,100)],
                   x0 = [0,0,0,0,0,0],

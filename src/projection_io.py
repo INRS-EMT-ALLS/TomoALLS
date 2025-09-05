@@ -12,11 +12,13 @@ def normalize(image):
     image = (image-image.min()+ 2e-8)/(image.max()-image.min()+ 2e-8)
     return image
 
-def image_exporter(image, path, dtype=np.uint16):
+def image_exporter(image, path,dtype=np.uint16):
     image = normalize(image)
-    max_val = np.iinfo(dtype).max  # 65535 for uint16
-    scaled = (image * max_val).round().astype(np.uint16)
+    # max_val = np.iinfo(np.uint16).max  # 65535 for uint16
+    scaled = (image * 65535).round().astype(np.uint16)
     scaled.tofile(path)
+
+
 def image_importer(path, height, width, dtype=np.uint16):
     return np.fromfile(path, dtype=dtype).reshape((height, width)).astype(np.float32)
 
