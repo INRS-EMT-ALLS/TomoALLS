@@ -16,7 +16,7 @@ from projection_preprocessing import generate_gain_map, generate_offset_map, gen
 height,width = 2048,4096
 max_angle = 360
 
-export_path = "examples/corrected_projections_complete"
+export_path = "examples/corrected_projections_complete/"
 raw_projection_path = "examples/raw_projections/"
 calibration_path = "Calibration/"
 gain_map_path_file_name = "GainMap.raw"
