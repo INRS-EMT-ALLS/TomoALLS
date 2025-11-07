@@ -1,32 +1,8 @@
-import scipy
 import numpy as np
 from skopt import gp_minimize
-from scipy import ndimage
-import matplotlib.pyplot as plt
-import glob
-from matplotlib.widgets import Slider
-from scipy.ndimage import zoom, convolve, label
-import time
-import numpy as np
-# from leapctype import *
-
-# leapct = tomographicModels()
 import copy
-import matplotlib.pyplot as plt
-from PIL import Image
-from IPython.display import clear_output
-import math
-import random
-import napari
-import numpy as np
-import os
-import shutil
-import numpy as np
-import matplotlib.pyplot as plt
-from scipy.fft import fft2, fftshift, ifft2, ifftshift
-from skimage.filters import window
-import copy
-
+from scipy.ndimage import median_filter
+import json
 
 from projection_io import image_importer, directory_images_importer, image_exporter
 from projection_visualization import (
@@ -41,29 +17,10 @@ from projection_preprocessing import (
     generate_bad_pixel_map,
     projection_correction,
     normalize,
+    clip_extremes,
 )
 
-from scipy.ndimage import zoom, convolve, label, shift, median_filter
-import scipy
-import numpy as np
-from skopt import gp_minimize
-from scipy import ndimage
-import matplotlib.pyplot as plt
-import sys
-from matplotlib.widgets import Slider
-from scipy.ndimage import zoom, convolve, label
-import time
-import numpy as np
-import copy
-import matplotlib.pyplot as plt
-from PIL import Image
-
-import numpy as np
-import os
-
-# from leapctype import *
-
-import json
+from leapctype import *
 
 
 def angles_to_vec(angles):
@@ -89,151 +46,125 @@ def project(v, u):
 
 
 class Reconstruction:
-    def __init__(self) -> None:
+    def __init__(self, path) -> None:
         # Imported Values
-        self.imported_values = False
-        self.path = ""
-        self.cropped = True
-        self.height, self.width = 0, 0
-        self.num_angles = 0
-        self.tomogram_cropped_min_x = 0
-        self.tomogram_cropped_max_x = 0
-        self.tomogram_cropped_min_y = 0
-        self.tomogram_cropped_max_y = 0
-        self.images = 0
-        self.pixel_size = 0
-        self.initial_voxel_volume_x_len = 0
-        self.initial_voxel_volume_y_len = 0
-        self.initial_voxel_volume_z_len = 0
-        self.initial_voxel_size = 0
-        self.z_min = 0
-        self.z_max = 0
-        self.x_min = 0
-        self.x_max = 0
-        self.y_min = 0
-        self.y_max = 0
-        self.magnified_voxel_size = 0.0
-        self.initial_source_to_detector = np.array([0.0, 0.0, 0.0])
-        self.initial_source_to_volume = np.array([0.0, 0.0, 0.0])
-        self.initial_detector_col_angles = np.array([0.0, 0.0])
-        self.initial_detector_row_angles = np.array([0.0, 0.0])
-        self.initial_rotation_axis_angles = np.array([0.0, 0.0])
-        self.source_to_detector_offset = np.array([0.0, 0.0, 0.0])
-        self.source_to_volume_offset = np.array([0.0, 0.0, 0.0])
-        self.detector_col_angles_offset = np.array([0.0, 0.0])
-        self.detector_row_angles_offset = np.array([0.0, 0.0])
-        self.rotation_axis_angles_offset = np.array([0.0, 0.0])
-        self.source_to_detector = np.array([0.0, 0.0, 0.0])
-        self.source_to_volume = np.array([0.0, 0.0, 0.0])
-        self.detector_col_angles = np.array([0.0, 0.0])
-        self.detector_row_angles = np.array([0.0, 0.0])
-        self.rotation_axis_angles = np.array([0.0, 0.0])
-        self.initial_projections = np.array([0.0, 0.0])
-
-        self.num_angles = 0
-        self.num_rows = 0
-        self.num_cols = 0
-        self.pixel_size = 0
-        self.source_positions = np.array([0.0, 0.0])
-        self.module_centers = np.array([0.0, 0.0])
-        self.row_vectors = np.array([0.0, 0.0])
-        self.col_vectors = np.array([0.0, 0.0])
-
-        self.magnified_voxel_volume_x_len = 0
-        self.magnified_voxel_volume_y_len = 0
-        self.magnified_voxel_volume_z_len = 0
-
-        self.reconstruction_volume = np.array([0.0, 0.0])
-        self.reprojected_projections = np.array([0.0, 0.0])
 
         self.leapct = tomographicModels()
 
-    def import_json(self, path):
+        self.best_error = 10000000000000
+
+        self.best_sweep = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
         with open(path, "r") as f:
             # Parsing the JSON file into a Python dictionary
-            params = json.load(f)
-        print(params)
+            self.json_values = json.load(f)
+
+        # print(params)
         self.imported_values = True
 
-        self.path = params["path"]
+        self.path = self.json_values["path"]
 
-        self.cropped = params["cropped"]
+        self.cropped = self.json_values["cropped"]
 
-        self.height = params["initial_image_parameters"]["image_height"]
-        self.width = params["initial_image_parameters"]["image_width"]
-        self.pixel_size = params["initial_image_parameters"]["pixel_size"]
-        self.num_angles = params["initial_image_parameters"]["num_angles"]
+        self.height = self.json_values["initial_image_parameters"]["image_height"]
+        self.width = self.json_values["initial_image_parameters"]["image_width"]
+        self.pixel_size = self.json_values["initial_image_parameters"]["pixel_size"]
+        self.num_angles = self.json_values["initial_image_parameters"]["num_angles"]
 
-        self.tomogram_cropped_min_x = params["cropped_image_parameters"]["image_min_x"]
-        self.tomogram_cropped_max_x = params["cropped_image_parameters"]["image_max_x"]
-        self.tomogram_cropped_min_y = params["cropped_image_parameters"]["image_min_y"]
-        self.tomogram_cropped_max_y = params["cropped_image_parameters"]["image_max_y"]
-
-        self.initial_voxel_volume_x_len = params["initial_reconstruction_parameters"][
-            "initial_voxel_volume_x_len"
+        self.tomogram_cropped_min_x = self.json_values["cropped_image_parameters"][
+            "image_min_x"
         ]
-        self.initial_voxel_volume_y_len = params["initial_reconstruction_parameters"][
-            "initial_voxel_volume_y_len"
+        self.tomogram_cropped_max_x = self.json_values["cropped_image_parameters"][
+            "image_max_x"
         ]
-        self.initial_voxel_volume_z_len = params["initial_reconstruction_parameters"][
-            "initial_voxel_volume_z_len"
+        self.tomogram_cropped_min_y = self.json_values["cropped_image_parameters"][
+            "image_min_y"
         ]
-        self.initial_voxel_size = params["initial_reconstruction_parameters"][
+        self.tomogram_cropped_max_y = self.json_values["cropped_image_parameters"][
+            "image_max_y"
+        ]
+
+        self.initial_voxel_volume_x_len = self.json_values[
+            "initial_reconstruction_parameters"
+        ]["initial_voxel_volume_x_len"]
+        self.initial_voxel_volume_y_len = self.json_values[
+            "initial_reconstruction_parameters"
+        ]["initial_voxel_volume_y_len"]
+        self.initial_voxel_volume_z_len = self.json_values[
+            "initial_reconstruction_parameters"
+        ]["initial_voxel_volume_z_len"]
+        self.initial_voxel_size = self.json_values["initial_reconstruction_parameters"][
             "initial_voxel_size"
         ]
 
-        self.x_min = params["magnified_reconstruction_parameters"][
+        self.x_min = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_x_len_min"
         ]
-        self.x_max = params["magnified_reconstruction_parameters"][
+        self.x_max = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_x_len_max"
         ]
-        self.y_min = params["magnified_reconstruction_parameters"][
+        self.y_min = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_y_len_min"
         ]
-        self.y_max = params["magnified_reconstruction_parameters"][
+        self.y_max = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_y_len_max"
         ]
-        self.z_min = params["magnified_reconstruction_parameters"][
+        self.z_min = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_z_len_min"
         ]
-        self.z_max = params["magnified_reconstruction_parameters"][
+        self.z_max = self.json_values["magnified_reconstruction_parameters"][
             "initial_voxel_volume_z_len_max"
         ]
-        self.magnified_voxel_size = params["magnified_reconstruction_parameters"][
-            "magnified_voxel_size"
-        ]
+        self.magnified_voxel_size = self.json_values[
+            "magnified_reconstruction_parameters"
+        ]["magnified_voxel_size"]
 
         self.initial_source_to_detector = np.array(
-            params["initial_geometry_parameters"]["source_to_detector"]
+            self.json_values["initial_geometry_parameters"]["source_to_detector"]
         )
         self.initial_source_to_volume = np.array(
-            params["initial_geometry_parameters"]["source_to_volume"]
+            self.json_values["initial_geometry_parameters"]["source_to_volume"]
         )
         self.initial_detector_col_angles = np.array(
-            params["initial_geometry_parameters"]["detector_col_angles"]
+            self.json_values["initial_geometry_parameters"]["detector_col_angles"]
         )
         self.initial_detector_row_angles = np.array(
-            params["initial_geometry_parameters"]["detector_row_angles"]
+            self.json_values["initial_geometry_parameters"]["detector_row_angles"]
         )
         self.initial_rotation_axis_angles = np.array(
-            params["initial_geometry_parameters"]["rotation_axis_angles"]
+            self.json_values["initial_geometry_parameters"]["rotation_axis_angles"]
         )
 
         self.source_to_detector_offset = np.array(
-            params["geometry_parameters_offset"]["source_to_detector"]
+            self.json_values["geometry_parameters_offset"]["source_to_detector"]
         )
         self.source_to_volume_offset = np.array(
-            params["geometry_parameters_offset"]["source_to_volume"]
+            self.json_values["geometry_parameters_offset"]["source_to_volume"]
         )
         self.detector_col_angles_offset = np.array(
-            params["geometry_parameters_offset"]["detector_col_angles"]
+            self.json_values["geometry_parameters_offset"]["detector_col_angles"]
         )
         self.detector_row_angles_offset = np.array(
-            params["geometry_parameters_offset"]["detector_row_angles"]
+            self.json_values["geometry_parameters_offset"]["detector_row_angles"]
         )
         self.rotation_axis_angles_offset = np.array(
-            params["geometry_parameters_offset"]["rotation_axis_angles"]
+            self.json_values["geometry_parameters_offset"]["rotation_axis_angles"]
+        )
+
+        self.source_to_detector_range = np.array(
+            self.json_values["parameter_search_range"]["source_to_detector"]
+        )
+        self.source_to_volume_range = np.array(
+            self.json_values["parameter_search_range"]["source_to_volume"]
+        )
+        self.detector_col_angles_range = np.array(
+            self.json_values["parameter_search_range"]["detector_col_angles"]
+        )
+        self.detector_row_angles_range = np.array(
+            self.json_values["parameter_search_range"]["detector_row_angles"]
+        )
+        self.rotation_axis_angles_range = np.array(
+            self.json_values["parameter_search_range"]["rotation_axis_angles"]
         )
 
         self.source_to_detector = (
@@ -269,11 +200,45 @@ class Reconstruction:
                 self.tomogram_cropped_min_x : self.tomogram_cropped_max_x,
             ]
 
-    def view(self):
-        viewer(self.initial_projections)
+    def export_json(self, path):
+        self.json_values["geometry_parameters_offset"]["source_to_detector"] = (
+            np.ndarray.tolist(self.source_to_detector_offset)
+        )
+        self.json_values["geometry_parameters_offset"]["source_to_volume"] = (
+            np.ndarray.tolist(self.source_to_volume_offset)
+        )
+
+        self.json_values["geometry_parameters_offset"]["detector_col_angles"] = (
+            np.ndarray.tolist(self.detector_col_angles_offset)
+        )
+        self.json_values["geometry_parameters_offset"]["detector_row_angles"] = (
+            np.ndarray.tolist(self.detector_row_angles_offset)
+        )
+        self.json_values["geometry_parameters_offset"]["rotation_axis_angles"] = (
+            np.ndarray.tolist(self.rotation_axis_angles_offset)
+        )
+        print(type(self.json_values))
+        with open(path, "w") as output_file:
+            # Parsing the JSON file into a Python dictionary
+            json.dump(self.json_values, output_file, indent=3)  # def view(self):
 
     def generate_geometry(self):
         if self.imported_values:
+            self.source_to_detector = (
+                self.initial_source_to_detector + self.source_to_detector_offset
+            )
+            self.source_to_volume = (
+                self.initial_source_to_volume + self.source_to_volume_offset
+            )
+            self.detector_col_angles = (
+                self.initial_detector_col_angles + self.detector_col_angles_offset
+            )
+            self.detector_row_angles = (
+                self.initial_detector_row_angles + self.detector_row_angles_offset
+            )
+            self.rotation_axis_angles = (
+                self.initial_rotation_axis_angles + self.rotation_axis_angles_offset
+            )
             tomogram_cropped_height = (
                 self.tomogram_cropped_max_y - self.tomogram_cropped_min_y
             )
@@ -337,7 +302,7 @@ class Reconstruction:
                 + detector_col_vec * self.pixel_size * cropped_offset_from_center_x
             )
 
-            volume_to_source = -self.source_to_volume
+            volume_to_source = -(self.source_to_volume)
             volume_to_detector = (
                 volume_to_source + self.source_to_detector + cropped_area_offset
             )
@@ -396,30 +361,114 @@ class Reconstruction:
             self.reconstruction_volume = leapct.allocateVolume()
 
     def reconstruct(self, num_iter=3, num_subset=3):
-        startTime = time.time()
+        # startTime = time.time()
+
         self.leapct.SART(
             self.initial_projections, self.reconstruction_volume, num_iter, num_subset
         )
-        print("Reconstruction Elapsed Time: " + str(time.time() - startTime))
+        # print("Reconstruction Elapsed Time: " + str(time.time() - startTime))
         # print(f.shape)
         # image_to_jpeg(f[f.shape[0] // 2, :, :], "test.jpeg")
 
         # viewer(f)
+
+        pass
 
     def reproject(self):
         self.leapct.project(
             self.reprojected_projections,
             self.reconstruction_volume,
         )
+        pass
 
     def calculate_error(self):
+        self.initial_projection_shape = np.round(
+            normalize(median_filter(clip_extremes(self.initial_projections, 0.1), 3))
+        )
+        reprojected_projection_shape = np.round(
+            normalize(
+                median_filter(clip_extremes(self.reprojected_projections, 0.1), 3)
+            )
+        )
 
+        shape_diff = np.abs(
+            normalize(self.initial_projection_shape)
+            - normalize(reprojected_projection_shape)
+        )
 
+        shape_loss = np.sum(shape_diff)
 
+        feature_diff = np.zeros(shape_loss.shape)
+        for i in range(feature_diff.shape[0]):
+            feature_diff[i, :, :] = np.abs(
+                normalize(self.initial_projections[i, :, :])
+                - normalize(self.reprojected_projections[i, :, :])
+            )
 
+        feature_loss = np.sum(feature_diff)
 
-recon = Reconstruction()
-recon.import_json("src/tomogram_cropped.json")
-recon.view()
+        return feature_loss + shape_loss
 
-# GEOMETRY CONVERSION #
+    def optimizer(self, params_list):
+        self.update_offsets(params_list)
+        self.generate_geometry()
+        self.reconstruct(4, 3)
+        self.reproject()
+
+        error = self.calculate_error()
+
+        if error < self.best_error:
+            self.best_sweep = copy.deepcopy(params_list)
+            self.best_error = error
+
+        return error
+
+    def update_offsets(self, params_list):
+        self.source_to_detector_offset = np.array(
+            [params_list[0], params_list[1], params_list[2]]
+        )
+        self.source_to_volume_offset = np.array(
+            [params_list[3], params_list[4], params_list[5]]
+        )
+        self.detector_col_angles_offset = np.array([params_list[6], params_list[7]])
+        self.detector_row_angles_offset = np.array([params_list[8], params_list[9]])
+        self.rotation_axis_angles_offset = np.array([params_list[10], params_list[11]])
+
+    def optimize(self, n_calls=10, n_random_starts=10, random_state=4):
+        initial_param_list = [
+            self.source_to_detector[0],
+            self.source_to_detector[1],
+            self.source_to_detector[2],
+            self.source_to_volume[0],
+            self.source_to_volume[1],
+            self.source_to_volume[2],
+            self.detector_col_angles[0],
+            self.detector_col_angles[1],
+            self.detector_row_angles[0],
+            self.detector_row_angles[1],
+            self.rotation_axis_angles[0],
+            self.rotation_axis_angles[1],
+        ]
+        range_list = [
+            tuple(self.source_to_detector_range[0]),
+            tuple(self.source_to_detector_range[1]),
+            tuple(self.source_to_detector_range[2]),
+            tuple(self.source_to_volume_range[0]),
+            tuple(self.source_to_volume_range[1]),
+            tuple(self.source_to_volume_range[2]),
+            tuple(self.detector_col_angles_range[0]),
+            tuple(self.detector_col_angles_range[1]),
+            tuple(self.detector_row_angles_range[0]),
+            tuple(self.detector_row_angles_range[1]),
+            tuple(self.rotation_axis_angles_range[0]),
+            tuple(self.rotation_axis_angles_range[1]),
+        ]
+
+        result = gp_minimize(
+            self.optimizer,  # the function to minimize
+            range_list,
+            x0=initial_param_list,
+            n_calls=n_calls,  # the number of evaluations of f including at x0
+            n_random_starts=n_random_starts,  # the number of random initial points
+            random_state=random_state,
+        )
