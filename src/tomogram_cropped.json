@@ -1,0 +1,45 @@
+{
+  "path": "examples/corrected_projections_complete_cropped",
+  "cropped": true,
+  "initial_image_parameters": {
+    "image_height": 2048,
+    "image_width": 4096,
+    "num_angles": 180,
+    "pixel_size": 0.008
+  },
+  "cropped_image_parameters": {
+    "image_min_x": 2250,
+    "image_max_x": 2700,
+    "image_min_y": 255,
+    "image_max_y": 1770
+  },
+  "initial_reconstruction_parameters": {
+    "initial_voxel_volume_x_len": 256,
+    "initial_voxel_volume_y_len": 256,
+    "initial_voxel_volume_z_len": 256,
+    "initial_voxel_size": 0.032
+  },
+  "magnified_reconstruction_parameters": {
+    "initial_voxel_volume_x_len_min": 256,
+    "initial_voxel_volume_x_len_max": 256,
+    "initial_voxel_volume_y_len_min": 256,
+    "initial_voxel_volume_y_len_max": 256,
+    "initial_voxel_volume_z_len_min": 256,
+    "initial_voxel_volume_z_len_max": 256,
+    "magnified_voxel_size": 0.016
+  },
+  "initial_geometry_parameters": {
+    "source_to_detector": [0, 2360, 0],
+    "source_to_volume": [0, 775, 0],
+    "detector_col_angles": [0, 0],
+    "detector_row_angles": [-1.5707963267948966, 0],
+    "rotation_axis_angles": [0, 0]
+  },
+  "geometry_parameters_offset": {
+    "source_to_detector": [0, 0, 0],
+    "source_to_volume": [0, 0, 0],
+    "detector_col_angles": [0, 0],
+    "detector_row_angles": [0, 0],
+    "rotation_axis_angles": [0, 0]
+  }
+}
