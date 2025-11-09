@@ -22,7 +22,6 @@ from projection_preprocessing import (
 
 from leapctype import *
 
-
 def angles_to_vec(angles):
     return np.array(
         [
@@ -53,7 +52,9 @@ class Reconstruction:
 
         self.best_error = 10000000000000
 
-        self.best_sweep = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        self.best_params = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+        self.current_pass = 1
 
         with open(path, "r") as f:
             # Parsing the JSON file into a Python dictionary
@@ -184,11 +185,11 @@ class Reconstruction:
         )
 
         if self.cropped:
-            self.initial_projections = directory_images_importer(
+            self.initial_projections = np.ascontiguousarray(directory_images_importer(
                 self.path,
                 self.tomogram_cropped_max_y - self.tomogram_cropped_min_y,
                 self.tomogram_cropped_max_x - self.tomogram_cropped_min_x,
-            )
+            ))
         else:
             self.initial_projections = directory_images_importer(
                 self.path,
@@ -199,6 +200,9 @@ class Reconstruction:
                 self.tomogram_cropped_min_y : self.tomogram_cropped_max_y,
                 self.tomogram_cropped_min_x : self.tomogram_cropped_max_x,
             ]
+
+        self.reprojected_projections = np.array([0])
+        self.reconstruction_volume = np.array([0])
 
     def export_json(self, path):
         self.json_values["geometry_parameters_offset"]["source_to_detector"] = (
@@ -220,7 +224,16 @@ class Reconstruction:
         print(type(self.json_values))
         with open(path, "w") as output_file:
             # Parsing the JSON file into a Python dictionary
-            json.dump(self.json_values, output_file, indent=3)  # def view(self):
+            json.dump(self.json_values, output_file, indent=3)  #
+
+    def view_initial_projection(self):
+        viewer(self.initial_projections)
+
+    def view_reconstruction_volume(self):
+        viewer(self.reconstruction_volume)
+
+    def view_reprojected_projections(self):
+        viewer(self.reprojected_projections)
 
     def generate_geometry(self):
         if self.imported_values:
@@ -358,10 +371,23 @@ class Reconstruction:
                 self.magnified_voxel_size,
             )
 
-            self.reconstruction_volume = leapct.allocateVolume()
+            # print(self.magnified_voxel_volume_x_len,
+            #     self.magnified_voxel_volume_y_len,
+            #     self.magnified_voxel_volume_z_len,
+            #     self.magnified_voxel_size,
+            #     self.magnified_voxel_size)
+
+            self.reconstruction_volume = self.leapct.allocateVolume()
+            self.reprojected_projections = self.leapct.allocateProjections()
+            # temp = copy.deepcopy(self.initial_projections)
+            # print(self.initial_projections.shape)
+            # self.initial_projections = self.leapct.allocateProjections()
+            # self.initial_projections = temp
 
     def reconstruct(self, num_iter=3, num_subset=3):
         # startTime = time.time()
+        # print(self.reconstruction_volume.shape)
+        # print(self.initial_projections.shape)
 
         self.leapct.SART(
             self.initial_projections, self.reconstruction_volume, num_iter, num_subset
@@ -372,9 +398,9 @@ class Reconstruction:
 
         # viewer(f)
 
-        pass
 
     def reproject(self):
+        self.reprojected_projections[:] = 0
         self.leapct.project(
             self.reprojected_projections,
             self.reconstruction_volume,
@@ -385,6 +411,8 @@ class Reconstruction:
         self.initial_projection_shape = np.round(
             normalize(median_filter(clip_extremes(self.initial_projections, 0.1), 3))
         )
+        maximum_error = self.initial_projections.shape[0] * self.initial_projections.shape[1] * self.initial_projections.shape[2]
+
         reprojected_projection_shape = np.round(
             normalize(
                 median_filter(clip_extremes(self.reprojected_projections, 0.1), 3)
@@ -396,31 +424,52 @@ class Reconstruction:
             - normalize(reprojected_projection_shape)
         )
 
-        shape_loss = np.sum(shape_diff)
-
-        feature_diff = np.zeros(shape_loss.shape)
+        # viewer(self.initial_projections)
+        # viewer(self.reprojected_projections)
+        shape_loss = np.sum(shape_diff)/maximum_error
+        feature_diff = np.zeros(shape_diff.shape)
         for i in range(feature_diff.shape[0]):
             feature_diff[i, :, :] = np.abs(
                 normalize(self.initial_projections[i, :, :])
                 - normalize(self.reprojected_projections[i, :, :])
             )
 
-        feature_loss = np.sum(feature_diff)
+        feature_loss = np.sum(feature_diff)/maximum_error
+        # viewer(feature_diff)
+        return (feature_loss, shape_loss)
+    def print_reconstruction_parameters(self):
 
-        return feature_loss + shape_loss
+        print("Reconstruction paramaters: ")
+        print(f"Source to detector distance: {self.source_to_detector}")
+        print(f"Source to volume distance: {self.source_to_volume}")
+        print(f"Detector column angles: {self.detector_col_angles}")
+        print(f"Detector row angles: {self.detector_row_angles}")
+        print(f"Object rotation axis angles: {self.rotation_axis_angles}")
 
     def optimizer(self, params_list):
+
+        print(f"----------------- Reconstruction {self.current_pass} -----------------")
         self.update_offsets(params_list)
         self.generate_geometry()
-        self.reconstruct(4, 3)
+        self.print_reconstruction_parameters()
+        print("Reconstructing with SART")
+        self.reconstruct(5, 5)
+        print("Reprojecting volume")
         self.reproject()
 
-        error = self.calculate_error()
+
+        print("Calculating error")
+        feature_loss, shape_loss = self.calculate_error()
+        error = (feature_loss + shape_loss)/2
+        print(f"Feature error: {feature_loss}")
+        print(f"Shape error: {shape_loss}")
+
+        print(f"Total error: {error}")
 
         if error < self.best_error:
-            self.best_sweep = copy.deepcopy(params_list)
+            self.best_params = copy.deepcopy(params_list)
             self.best_error = error
-
+        self.current_pass+=1
         return error
 
     def update_offsets(self, params_list):
@@ -434,20 +483,20 @@ class Reconstruction:
         self.detector_row_angles_offset = np.array([params_list[8], params_list[9]])
         self.rotation_axis_angles_offset = np.array([params_list[10], params_list[11]])
 
-    def optimize(self, n_calls=10, n_random_starts=10, random_state=4):
+    def optimize(self, n_calls=10, n_random_starts=0, random_state=121004):
         initial_param_list = [
-            self.source_to_detector[0],
-            self.source_to_detector[1],
-            self.source_to_detector[2],
-            self.source_to_volume[0],
-            self.source_to_volume[1],
-            self.source_to_volume[2],
-            self.detector_col_angles[0],
-            self.detector_col_angles[1],
-            self.detector_row_angles[0],
-            self.detector_row_angles[1],
-            self.rotation_axis_angles[0],
-            self.rotation_axis_angles[1],
+            self.source_to_detector_offset[0],
+            self.source_to_detector_offset[1],
+            self.source_to_detector_offset[2],
+            self.source_to_volume_offset[0],
+            self.source_to_volume_offset[1],
+            self.source_to_volume_offset[2],
+            self.detector_col_angles_offset[0],
+            self.detector_col_angles_offset[1],
+            self.detector_row_angles_offset[0],
+            self.detector_row_angles_offset[1],
+            self.rotation_axis_angles_offset[0],
+            self.rotation_axis_angles_offset[1],
         ]
         range_list = [
             tuple(self.source_to_detector_range[0]),
@@ -472,3 +521,16 @@ class Reconstruction:
             n_random_starts=n_random_starts,  # the number of random initial points
             random_state=random_state,
         )
+
+        print("Best results:")
+
+        self.update_offsets(self.best_params)
+        print(f"Best error: {self.best_error}")
+        self.print_reconstruction_parameters
+
+
+recon = Reconstruction("examples/example_import.json")
+recon.generate_geometry()
+recon.reconstruct(3, 3)
+recon.optimize()
+recon.export_json("examples/updated_import.json")

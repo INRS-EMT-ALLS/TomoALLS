@@ -4,7 +4,7 @@
   "initial_image_parameters": {
     "image_height": 2048,
     "image_width": 4096,
-    "num_angles": 180,
+    "num_angles": 181,
     "pixel_size": 0.008
   },
   "cropped_image_parameters": {
@@ -20,13 +20,13 @@
     "initial_voxel_size": 0.032
   },
   "magnified_reconstruction_parameters": {
-    "initial_voxel_volume_x_len_min": 256,
-    "initial_voxel_volume_x_len_max": 256,
-    "initial_voxel_volume_y_len_min": 256,
+    "initial_voxel_volume_x_len_min": 140,
+    "initial_voxel_volume_x_len_max": 200,
+    "initial_voxel_volume_y_len_min": 0,
     "initial_voxel_volume_y_len_max": 256,
-    "initial_voxel_volume_z_len_min": 256,
+    "initial_voxel_volume_z_len_min": 0,
     "initial_voxel_volume_z_len_max": 256,
-    "magnified_voxel_size": 0.016
+    "magnified_voxel_size": 0.032
   },
   "initial_geometry_parameters": {
     "source_to_detector": [0, 2360, 0],
