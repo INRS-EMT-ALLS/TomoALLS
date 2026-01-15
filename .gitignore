@@ -13,7 +13,6 @@ lib64
 *.raw
 examples/raw_projections/
 examples/corrected_projections/
-*.png
 *.raw
 *.jpeg
 LEAP/
