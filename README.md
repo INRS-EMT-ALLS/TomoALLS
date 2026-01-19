@@ -13,6 +13,22 @@ The test data was an alloy rod with an indentation.
   <img src=https://raw.githubusercontent.com/INRS-EMT-ALLS/TomoALLS/refs/heads/main/images/example_reconstruction.png>
 </p>
 
+# Installation
+
+To use the code, it is suggested to use a virtual environment. 
+
+```bash
+
+git clone https://github.com/INRS-EMT-ALLS/TomoALLS.git
+
+python -m venv .
+
+source /bin/activate
+
+sh install.sh
+
+```
+
 # Author
 
 Olivier Saint-Vincent (olivier520100@gmail.com)
