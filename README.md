@@ -31,7 +31,7 @@ sh install.sh
 
 # Report and Usage
 
-To view the methodolody and documentation, it is available [here](https://drive.google.com/file/d/1uBUQ8hwRomeg3crkftMhrpZme4aqhwYP/view?usp=sharing)
+To view the methodolody and documentation, it is available [here](https://drive.google.com/file/d/1GWxPrcaNB7_4LthU_1Jet7vsyOTgwO07/view?usp=sharing)
 
 
 
