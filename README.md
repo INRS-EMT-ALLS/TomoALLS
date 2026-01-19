@@ -29,6 +29,12 @@ sh install.sh
 
 ```
 
+# Report and Usage
+
+To view the methodolody and documentation, it is available [here](https://drive.google.com/file/d/1uBUQ8hwRomeg3crkftMhrpZme4aqhwYP/view?usp=sharing)
+
+
+
 # Author
 
 Olivier Saint-Vincent (olivier520100@gmail.com)
