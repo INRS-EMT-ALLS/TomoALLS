@@ -22,6 +22,7 @@ To use the code, it is suggested to use a virtual environment.
 git clone https://github.com/INRS-EMT-ALLS/TomoALLS.git
 
 cd TomoALLS
+
 python -m venv .
 
 source /bin/activate
