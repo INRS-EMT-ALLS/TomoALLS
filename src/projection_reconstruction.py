@@ -528,9 +528,3 @@ class Reconstruction:
         print(f"Best error: {self.best_error}")
         self.print_reconstruction_parameters
 
-
-recon = Reconstruction("examples/example_import.json")
-recon.generate_geometry()
-recon.reconstruct(3, 3)
-recon.optimize()
-recon.export_json("examples/updated_import.json")
